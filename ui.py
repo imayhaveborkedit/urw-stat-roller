@@ -524,9 +524,6 @@ class Ui:
         buffer.on_text_changed.fire()
 
 
-if __name__ == '__main__':
-    Ui().run()
-
 # TODO:
 #   Undo button (stat history)
 #   Cheat mode
