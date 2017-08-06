@@ -7,13 +7,13 @@ from prompt_toolkit.application import Application
 from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.document import Document
 from prompt_toolkit.enums import DEFAULT_BUFFER
-from prompt_toolkit.filters import Condition, Always
+from prompt_toolkit.filters import Condition
 from prompt_toolkit.interface import CommandLineInterface
 from prompt_toolkit.key_binding.registry import Registry
 from prompt_toolkit.key_binding.bindings.named_commands import get_by_name
 from prompt_toolkit.keys import Keys
 from prompt_toolkit.layout.containers import VSplit, HSplit, Window
-from prompt_toolkit.layout.controls import BufferControl, FillControl, TokenListControl
+from prompt_toolkit.layout.controls import BufferControl, FillControl
 from prompt_toolkit.layout.dimension import LayoutDimension as D
 from prompt_toolkit.layout.margins import ScrollbarMargin, ConditionalMargin
 from prompt_toolkit.shortcuts import create_eventloop
@@ -35,7 +35,7 @@ help_text = textwrap.dedent(
 stat_args = {
     'dont_extend_width': True,
     'dont_extend_height': True,
-    'always_hide_cursor': False,
+    'always_hide_cursor': True,
     'wrap_lines': True,
     'height': D.exact(1),
     'width': D.exact(38),
@@ -177,7 +177,6 @@ class Ui:
             return lambda line: line.rstrip(' ') + ' (2x)'
         else:
             incr = lambda match: f" ({str(int(match.group('num')) + 1)}x)"
-            # return lambda line: re.sub(r'[ ]\((?P<num>\d+)x\)$', incr, line)
             return lambda line: self.repeated_message_pattern.sub(incr, line)
 
     def _print(self, *args, sep=' ', pre='\n', **kwargs):
@@ -204,7 +203,7 @@ class Ui:
 
 
     def prompt(self, message, end='>'):
-        pass
+        ...
 
 
     def _update_info_text(self, buff=None):
@@ -274,6 +273,11 @@ class Ui:
             }
         }
 
+
+    # TODO: Lexers
+    # from pygments.lexers import HtmlLexer
+    # from prompt_toolkit.layout.lexers import PygmentsLexer
+    # BufferControl(lexer=PygmentsLexer(HtmlLexer))
 
     def _gen_layout(self):
         stat_windows = []
@@ -416,7 +420,8 @@ class Ui:
 
         @registry.add_binding(Keys.Enter, filter=_f)
         def _(event):
-            ...
+            buf = event.cli.current_buffer
+            self.set_info_text(f"Enter on buffer {buf} at {buf.cursor_position}")
 
         return registry
 
@@ -522,10 +527,7 @@ class Ui:
 if __name__ == '__main__':
     Ui().run()
 
-
-# a) Probably you want to add syntax highlighting to one of these buffers. This
-#    is possible by passing a lexer to the BufferControl. E.g.:
-
-#    from pygments.lexers import HtmlLexer
-#    from prompt_toolkit.layout.lexers import PygmentsLexer
-#    BufferControl(lexer=PygmentsLexer(HtmlLexer))
+# TODO:
+#   Undo button (stat history)
+#   Cheat mode
+#   Race info and stat bounds helpers/warnings

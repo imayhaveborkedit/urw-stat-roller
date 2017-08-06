@@ -110,7 +110,6 @@ def _open_proc(pid):
             ctypes.windll.kernel32.CloseHandle(handle)
 
 
-
 class Hook:
     def __init__(self, load=True):
         self.pid = None
@@ -258,7 +257,7 @@ class Hook:
     def focus_this(self):
         win32gui.SetForegroundWindow(self._own_hwnd)
 
-    # TODO: proper context manager for this
+    # TODO: Test extensively
     @contextmanager
     def focus(self, thing):
         orig_window = self.hwnd if thing == self.THIS else self._own_hwnd
