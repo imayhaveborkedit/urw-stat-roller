@@ -199,7 +199,7 @@ class Ui:
         if _is_main_thread():
             self._print(*args, **kwargs)
         else:
-            self.cli.call_from_executor(lambda: self._print(*args, **kwargs))
+            self.cli.eventloop.call_from_executor(lambda: self._print(*args, **kwargs))
 
 
     def prompt(self, message, end='>'):
@@ -358,24 +358,23 @@ class Ui:
 
         @registry.add_binding('t')
         def _(event):
-            self.print("Dispatching runner")
+            # self.print("Dispatching runner")
 
             def do():
-                self.print("ok running")
-                event.cli.call_from_executor(lambda: self.print("still good"))
+                # self.print("ok running")
+                # event.cli.eventloop.call_from_executor(lambda: self.print("still good"))
 
                 t0 = time.time()
-                # for x in range(5):
-                #     self.hook.reroll(delay=0.017, warning="WARNING SAME STATS ROLLED")
-
-                self.hook.reroll(delay=0.017, warning="WARNING SAME STATS ROLLED")
+                for x in range(50):
+                    # self.reroll(delay=0.017, warning="WARNING SAME STATS ROLLED")
+                    self.reroll(delay=0.017)
 
 
                 t1 = time.time()
                 self.print(f'Rolled 100 times in {t1-t0:.4f}', 'sec')
 
             event.cli.eventloop.run_in_executor(do)
-            self.print("alrighty then")
+            # self.print("alrighty then")
 
         @registry.add_binding('r')
         def _(event):
@@ -485,9 +484,14 @@ class Ui:
                 self.print(warning)
 
             # TODO: add brakout failsafe
-            while new_stats == self._last_roll:
+            count = 0
+            while new_stats == self._last_roll and count < 50:
                 time.sleep(0.001)
                 new_stats = self.hook.read_all()
+                count += 1
+
+                if count == 10:
+                    self.print("Waited too long and gave up")
 
         self._last_roll = new_stats
 
@@ -525,6 +529,7 @@ class Ui:
 
 
 # TODO:
-#   Undo button (stat history)
-#   Cheat mode
 #   Race info and stat bounds helpers/warnings
+#   Cheat mode, turn all the text hacker green
+#     Undo button (stat history)
+#     Custom roll bounds and distribution (generate and set)
