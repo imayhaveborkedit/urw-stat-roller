@@ -2,6 +2,7 @@ import re
 import time
 import textwrap
 import threading
+import traceback
 
 from prompt_toolkit.application import Application
 from prompt_toolkit.buffer import Buffer
@@ -462,6 +463,9 @@ class Ui:
         buffer.reset(newdoc)
         buffer.on_text_changed.fire()
 
+    def on_error(self, *args):
+        self.print(f"An error has occurred: {traceback.format_exception(*args)}")
+        traceback.print_exception(*args)
 
 # TODO:
 #   Race info and stat bounds helpers/warnings
