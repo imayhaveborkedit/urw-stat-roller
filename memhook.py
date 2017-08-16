@@ -338,10 +338,15 @@ class MemReader:
         self._not_paused = threading.Event()
         self._not_paused.set()
 
-        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._thread = threading.Thread(name='MemReader', target=self._run, daemon=True)
 
     def _run(self):
         while self._should_run:
+            if not self.ui.hook.is_running():
+                time.sleep(1)
+                self.ui.hook.reload()
+                continue
+
             try:
                 stats = self.ui.hook.read_all(zip=True)
 
