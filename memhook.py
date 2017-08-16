@@ -366,3 +366,7 @@ class MemReader:
 
     def resume(self):
         self._not_paused.set()
+
+    @property
+    def paused(self):
+        return not self._not_paused
