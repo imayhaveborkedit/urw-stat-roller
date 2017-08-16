@@ -126,7 +126,7 @@ class Ui:
         self._scroll_state = 1
         self._help_showing = False
         self._last_roll = None
-        self._help_text = {}
+        self._help_text = []
 
         self.stat_state = {name: 0 for name in statinfo.names}
         self.stat_state['Rerolls'] = 0
@@ -300,12 +300,10 @@ class Ui:
 
         def bind_with_help(*args, name, info='', **kwargs):
             def dec(func):
-                self._help_text[name] = info
+                self._help_text.append(HelpItem(name, *args, info=info))
 
-
-                return func
-            return bind(*args, **kwargs)(dec)
-
+                return bind(*args, **kwargs)(func)
+            return dec
 
         bind(Keys.Left)(get_by_name('backward-char'))
         bind(Keys.Right)(get_by_name('forward-char'))
