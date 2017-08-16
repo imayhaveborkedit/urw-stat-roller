@@ -1,20 +1,22 @@
-import win32api
-import win32gui
-import win32process
-
-import ctypes
-import ctypes.wintypes
-
-from ctypes import c_char, c_byte, c_ulong, c_void_p
-from ctypes.wintypes import DWORD, HMODULE
-
 import os
+import sys
 import time
 import random
 import struct
 
 from collections import namedtuple
 from contextlib import contextmanager
+
+import ctypes
+
+from ctypes import c_char, c_byte, c_ulong, c_void_p
+from ctypes.wintypes import DWORD, HMODULE
+
+import win32api
+import win32gui
+import win32process
+
+from win32con import WM_CHAR, PROCESS_ALL_ACCESS
 
 import statinfo
 
@@ -53,36 +55,43 @@ Unknown (long)
 Unknown (long)
 
 Struct code: LLLLxBBBHBBxBBxxBBBxxBBxxxxLL
+Stat code:   LLL xxxx x x B B xx B B x B B xx B B B xx B B
 """
+
+# TODO: Struct object optimizations (especially for the full stat code)
 
 _Address = namedtuple("Address", "address size")
 
 _statmap = {
-    'Intelligence': _Address(0xA2BF232, 1),
-    'Will':         _Address(0xA2BF22F, 1),
+    'Intelligence': _Address(0x0A2BF232, 1),
+    'Will':         _Address(0x0A2BF22F, 1),
 
-    'Strength':     _Address(0xA2BF222, 1),
-    'Endurance':    _Address(0xA2BF229, 1),
-    'Dexterity':    _Address(0xA2BF226, 1),
-    'Agility':      _Address(0xA2BF223, 1),
-    'Speed':        _Address(0xA2BF227, 1),
-    'Eyesight':     _Address(0xA2BF22D, 1),
-    'Hearing':      _Address(0xA2BF233, 1),
-    'Smell/Taste':  _Address(0xA2BF22A, 1),
-    'Touch':        _Address(0xA2BF22E, 1),
+    'Strength':     _Address(0x0A2BF222, 1),
+    'Endurance':    _Address(0x0A2BF229, 1),
+    'Dexterity':    _Address(0x0A2BF226, 1),
+    'Agility':      _Address(0x0A2BF223, 1),
+    'Speed':        _Address(0x0A2BF227, 1),
+    'Eyesight':     _Address(0x0A2BF22D, 1),
+    'Hearing':      _Address(0x0A2BF233, 1),
+    'Smell/Taste':  _Address(0x0A2BF22A, 1),
+    'Touch':        _Address(0x0A2BF22E, 1),
 
-    'Height':       _Address(0xA2BF214, 4),
-    'Weight':       _Address(0xA2BF210, 4),
-    'Physique':     _Address(0xA2BF218, 4)
+    'Height':       _Address(0x0A2BF214, 4),
+    'Weight':       _Address(0x0A2BF210, 4),
+    'Physique':     _Address(0x0A2BF218, 4)
 }
+
+_rerolls = _Address(0x0A36B22C, 2) # this can be 1 or 2 it doesn't really matter
 
 _size_to_struct = {
     1: 'B',
+    2: 'H',
     4: 'L'
 }
 
+_stat_struct = struct.Struct('LLL xxxx x x B B xx B B x B B xx B B B xx B B')
+
 _TH32CS_SNAPMODULE = 8
-_PROCESS_ALL_ACCESS = 0x1F0FFF
 
 
 class _MODULEENTRY32(ctypes.Structure):
@@ -103,11 +112,15 @@ def _open_proc(pid):
     handle = None
 
     try:
-        handle = ctypes.windll.kernel32.OpenProcess(_PROCESS_ALL_ACCESS, False, pid)
+        handle = ctypes.windll.kernel32.OpenProcess(PROCESS_ALL_ACCESS, False, pid)
         yield handle
     finally:
         if handle:
             ctypes.windll.kernel32.CloseHandle(handle)
+
+
+def get_random_stats():
+    return {name: random.randrange(1,5) for name in statinfo.names}
 
 
 class Hook:
@@ -120,6 +133,8 @@ class Hook:
 
         self._own_pid = os.getpid()
         self._own_hwnd = ctypes.windll.kernel32.GetConsoleWindow()
+
+        self._last_stats = None
 
         if load:
             self.reload()
@@ -181,6 +196,27 @@ class Hook:
         time.sleep(delay or self._delay)
         win32api.keybd_event(78, 0, 2, 0)
 
+    def _press_n_no_focus(self, delay=None):
+        win32api.SendMessage(self.hwnd, WM_CHAR, 78)
+
+    def _read_mem_address(self, address, size, handle):
+        buf = (c_byte * size)()
+        bytesRead = c_ulong(0)
+
+        try:
+            result = ctypes.windll.kernel32.ReadProcessMemory(
+                handle, address, buf, size, ctypes.byref(bytesRead))
+
+            assert result != 0
+            return buf
+
+        except Exception as e:
+            err = ctypes.windll.kernel32.GetLastError()
+            err_msg = win32api.FormatMessage(result).strip()
+
+            raise RuntimeError(
+                f"Could not read address {address} ({size}B), error code {result} ({err_msg})")
+
     def _read_address(self, address, handle):
         size = address.size
         buf = (c_byte * size)()
@@ -195,7 +231,7 @@ class Hook:
 
         except Exception as e:
             err = ctypes.windll.kernel32.GetLastError()
-            raise RuntimeError(f"Could not read address (err {err})") from e
+            raise RuntimeError(f"Could not read address (err {err})")
 
     def read_address(self, address):
         with _open_proc(self.pid) as handle:
@@ -223,22 +259,56 @@ class Hook:
 
         return True
 
+    def safe_reroll(self, *, delay=None, retry_delay=0.001, retry=500):
+        self._last_stats = self.read_all()
+        last_reroll = self._read_rerolls()
+
+        self._press_n_no_focus(delay)
+
+        for x in range(retry):
+            stats = self.read_all()
+
+            if stats != self._last_stats:
+                return stats
+
+            time.sleep(retry_delay)
+
+        return self._last_stats # rip
+
+
     def read_stat(self, stat):
         if not self.is_running():
             raise RuntimeError("Process is not running")
 
         return self.read_address(_statmap[stat])
 
-    def _read_all(self):
-        with _open_proc(self.pid) as handle:
-            for stat in statinfo.names:
-                yield self._read_address(_statmap[stat], handle)
+    # def _read_all(self):
+    #     with _open_proc(self.pid) as handle:
+    #         for stat in statinfo.names:
+    #             yield self._read_address(_statmap[stat], handle)
 
-    def read_all(self):
+    def _read_all_stats(self):
+        with _open_proc(self.pid) as handle:
+            data = self._read_mem_address(
+                _statmap['Weight'].address + self.base_addr,
+                _stat_struct.size, handle)
+        # monkaS
+        w, h, p, s, a, d, sp, e, st, ey, t, wi, i, he = _stat_struct.unpack(data)
+        return i, wi, s, e, d, a, sp, ey, he, st, t, h, w, p
+
+    def read_all(self, *, zip=False):
         if not self.is_running():
             raise RuntimeError("Process is not running")
 
-        return list(self._read_all())
+        stats = self._read_all_stats()
+
+        if zip:
+            stats = self.zip(stats)
+
+        return stats
+
+    def _read_rerolls(self):
+        return self.read_address(_rerolls)
 
     def reroll(self, *, delay=None):
         if not self.is_foreground():
@@ -257,15 +327,6 @@ class Hook:
     def focus_this(self):
         win32gui.SetForegroundWindow(self._own_hwnd)
 
-    # TODO: Test extensively
-    @contextmanager
-    def focus(self, thing):
-        orig_window = self.hwnd if thing == self.THIS else self._own_hwnd
-
-        win32gui.SetForegroundWindow(thing)
-        yield
-        win32gui.SetForegroundWindow(orig_window)
 
 
-def get_random_stats():
-    return {name: random.randrange(1,5) for name in statinfo.names}
+

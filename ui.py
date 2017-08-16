@@ -412,24 +412,8 @@ class Ui:
         else:
             self.cli.invalidate()
 
-    def reroll(self, *, delay=None, ensure_change=True, warning=None):
-        new_stats = self.hook.reroll(delay=delay)
-
-        if self._last_roll and self._last_roll == new_stats:
-            if warning:
-                self.print(warning)
-
-            # TODO: add brakout failsafe
-            count = 0
-            while new_stats == self._last_roll and count < 50:
-                time.sleep(0.001)
-                new_stats = self.hook.read_all()
-                count += 1
-
-                if count == 10:
-                    self.print("Waited too long and gave up")
-
-        self._last_roll = new_stats
+    def reroll(self, **kw):
+        new_stats = self.hook.safe_reroll(**kw)
 
         self.set_stats(**self.hook.zip(new_stats))
         self.stat_state['Rerolls'] += 1
