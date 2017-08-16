@@ -345,7 +345,7 @@ class MemReader:
             try:
                 stats = self.ui.hook.read_all(zip=True)
 
-                self.ui.cli.eventloop.call_from_executor(lambda: self.ui.set_stats(**stats))
+                self.ui.run_in_executor(self.ui.set_stats, **stats)
                 self.ui.redraw()
             except:
                 self.ui.on_error(*sys.exc_info())
