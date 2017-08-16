@@ -69,7 +69,7 @@ class BufferState:
         self.position = position
 
     @property
-    def at(self):
+    def current(self):
         return self.order[self.position]
 
     def up(self):
@@ -80,13 +80,20 @@ class BufferState:
         self.position = max(0, self.position - 1)
         return self.order[self.position]
 
+    def goto(self, pos):
+        if not 0 <= pos <= len(self.order):
+            raise IndexError(f"Invalid buffer position {pos} (0 <= {pos} <= {len(self.order)})")
+
+        self.position = pos
+        return self.order[pos]
+
     def first(self):
         self.position = len(self.order) - 1
         return self.order[self.position]
 
     def last(self):
         self.position = 0
-        return self.order[self.position]
+        return self.order[0]
 
 
 class HelpItem:
@@ -160,12 +167,13 @@ class Ui:
             self.cli.eventloop.call_from_executor(lambda: self._print(*args, **kwargs))
 
 
+    # TODO
     def prompt(self, message, end='>'):
         ...
 
 
     def _update_info_text(self, buff=None):
-        buff = buff or self.stat_buffer_state.at
+        buff = buff or self.stat_buffer_state.current
         buffer = statinfo.Stats.get_name(buff)
 
         if buffer:
@@ -208,6 +216,7 @@ class Ui:
 
     def _gen_buffers(self):
         self.stat_buffer_state = BufferState()
+
         return {
             DEFAULT_BUFFER: Buffer(
                 initial_document=Document(""),
@@ -257,8 +266,7 @@ class Ui:
 
             try:
                 l = self.buffers['INFO_BUFFER'].document.line_count
-                r = self.info_window.render_info
-                return r.window_height < l
+                return self.info_window.render_info.window_height < l
             except:
                 return True
 
@@ -411,8 +419,15 @@ class Ui:
 
         self.buffers[DEFAULT_BUFFER].on_text_changed += default_buffer_changed
 
+    def _finalize_build(self):
+        self.set_info_text(help_text)
 
-    def build(self, alt=True):
+        self.print("UnReal World Stat Roller v2.0")
+        self.print("Press ? for help\n")
+
+
+
+    def build(self):
         self.buffers = self._gen_buffers()
         self.layout = self._gen_layout()
         self.registry = self._gen_bindings()
@@ -429,10 +444,7 @@ class Ui:
         self.cli = CommandLineInterface(
             application=self.application, eventloop=create_eventloop())
 
-        self.set_info_text("TODO: Startup text")
-
-        self.print("UnReal World Stat Roller v2.0")
-        self.print("Press ? for help\n")
+        self._finalize_build()
 
         self._built = True
         return self
@@ -450,7 +462,7 @@ class Ui:
         finally:
             self.cli.eventloop.close()
 
-    def _redraw(self):
+    def redraw(self):
         if _is_main_thread():
             self.cli._redraw()
         else:
@@ -462,7 +474,7 @@ class Ui:
         self.set_stats(**self.hook.zip(new_stats))
         self.stat_state['Rerolls'] += 1
 
-        self._redraw()
+        self.redraw()
 
     def set_stat(self, stat, value):
         self.stat_state[stat] = value
@@ -485,11 +497,15 @@ class Ui:
     def append_info_text(self, text, sep='\n'):
         text = self._make_info_text(text)
         buffer = self.buffers['INFO_BUFFER']
+
         newdoc = Document(buffer.document.text + sep + text,
                           cursor_position=buffer.document.cursor_position)
 
         buffer.reset(newdoc)
         buffer.on_text_changed.fire()
+
+    def _make_help_text(self):
+        return help_text
 
     def on_error(self, *args):
         self.print(f"An error has occurred: {traceback.format_exception(*args)}")
