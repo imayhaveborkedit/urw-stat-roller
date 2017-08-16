@@ -354,12 +354,12 @@ class Ui:
             event.cli.eventloop.run_in_executor(do)
             self.print("alrighty then")
 
-        @bind('r', name='Reroll')
+        @bind_with_help('r', name='Reroll')
         def _(event):
             l = self.reroll()
             self.set_stats(**self.hook.zip(l))
 
-        @bind('e', name='Update stats')
+        @bind_with_help('e', name='Update stats')
         def _(event):
             self.set_stats(**self.hook.zip(self.hook.read_all()))
 
@@ -378,7 +378,7 @@ class Ui:
         def _(event):
             self.set_info_text(self._help_text)
 
-        @bind('E', name='Embed IPython')
+        @bind_with_help('E', name='Embed IPython')
         def _(event):
             def do():
                 self, event # behold the magic of closures and scope
@@ -441,7 +441,7 @@ class Ui:
             buffers=self.buffers,
             key_bindings_registry=self.registry,
             mouse_support=True,
-            use_alternate_screen=alt)
+            use_alternate_screen=True)
 
         self.cli = CommandLineInterface(
             application=self.application, eventloop=create_eventloop())
