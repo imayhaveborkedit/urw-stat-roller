@@ -3,6 +3,7 @@ import sys
 import time
 import random
 import struct
+import threading
 
 from collections import namedtuple
 from contextlib import contextmanager
@@ -328,5 +329,35 @@ class Hook:
         win32gui.SetForegroundWindow(self._own_hwnd)
 
 
+class MemReader:
+    def __init__(self, ui, interval=0.1, *, run=True):
+        self.ui = ui
+        self.interval = interval
 
+        self._should_run = run
+        self._not_paused = threading.Event()
+        self._not_paused.set()
 
+        self._thread = threading.Thread(target=self._run, daemon=True)
+
+    def _run(self):
+        while self._should_run:
+            try:
+                stats = self.ui.hook.read_all(zip=True)
+
+                self.ui.cli.eventloop.call_from_executor(lambda: self.ui.set_stats(**stats))
+                self.ui.redraw()
+            except:
+                self.ui.on_error(*sys.exc_info())
+
+            time.sleep(self.interval)
+            self._not_paused.wait()
+
+    def start(self):
+        self._thread.start()
+
+    def pause(self):
+        self._not_paused.clear()
+
+    def resume(self):
+        self._not_paused.set()

@@ -425,6 +425,8 @@ class Ui:
         self.print("UnReal World Stat Roller v2.0")
         self.print("Press ? for help\n")
 
+        self._memreader = memhook.MemReader(self)
+        self._memreader.start()
 
 
     def build(self):
