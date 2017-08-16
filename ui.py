@@ -1,3 +1,4 @@
+import os
 import re
 import time
 import textwrap
@@ -20,9 +21,10 @@ from prompt_toolkit.layout.margins import ScrollbarMargin, ConditionalMargin
 from prompt_toolkit.shortcuts import create_eventloop
 from prompt_toolkit.token import Token
 
-import statinfo
-import memhook
 import scroll
+import memhook
+import statinfo
+import interactions
 
 
 help_text = textwrap.dedent(
@@ -87,6 +89,25 @@ class BufferState:
         return self.order[self.position]
 
 
+class HelpItem:
+    def __init__(self, name, *keys, info=''):
+        self.name = name
+        self.keys = keys
+        self.info = info
+
+    def _gen_keycode(self):
+        return ', '.join(self.keys)
+
+    def render(self):
+        return [
+            (Token.Space, ' '),
+            (Token.HelpKeyCode, self._gen_keycode()),
+            (Token.Space, ' '),
+            (Token.HelpName, self.name),
+            (Token.Space, ' '),
+
+        ]
+
 
 class Ui:
     repeated_message_pattern = re.compile(r'[ ]\((?P<num>[0-9]+)x\)$')
@@ -98,6 +119,7 @@ class Ui:
         self._scroll_state = 1
         self._help_showing = False
         self._last_roll = None
+        self._help_text = {}
 
         self.stat_state = {name: 0 for name in statinfo.names}
         self.stat_state['Rerolls'] = 0
@@ -266,15 +288,25 @@ class Ui:
 
     def _gen_bindings(self):
         registry = Registry()
+        bind = registry.add_binding
 
-        registry.add_binding(Keys.Left)(get_by_name('backward-char'))
-        registry.add_binding(Keys.Right)(get_by_name('forward-char'))
+        def bind_with_help(*args, name, info='', **kwargs):
+            def dec(func):
+                self._help_text[name] = info
 
-        @registry.add_binding(Keys.ControlC)
+
+                return func
+            return bind(*args, **kwargs)(dec)
+
+
+        bind(Keys.Left)(get_by_name('backward-char'))
+        bind(Keys.Right)(get_by_name('forward-char'))
+
+        @bind(Keys.ControlC)
         def _(event):
             event.cli.set_return_value(None)
 
-        @registry.add_binding('?')
+        @bind_with_help('?', name='Help', info="Shows a help screen")
         def _(event):
             if self._help_showing:
                 self._help_showing = False
@@ -284,44 +316,46 @@ class Ui:
             self.set_info_text(help_text)
             self._help_showing = True
 
-        @registry.add_binding(Keys.Up)
+        @bind(Keys.Up)
         def _(event):
             self._focus(self.stat_buffer_state.up())
 
-        @registry.add_binding(Keys.Down)
+        @bind(Keys.Down)
         def _(event):
             self._focus(self.stat_buffer_state.down())
 
-        @registry.add_binding('t')
+        @bind_with_help('t', name='Reroll test')
         def _(event):
-            # self.print("Dispatching runner")
+            self.print("Dispatching runner")
 
             def do():
-                # self.print("ok running")
-                # event.cli.eventloop.call_from_executor(lambda: self.print("still good"))
+                self.print("ok running")
 
+                num = 50
                 t0 = time.time()
-                for x in range(50):
+
+                for x in range(num):
                     # self.reroll(delay=0.017, warning="WARNING SAME STATS ROLLED")
-                    self.reroll(delay=0.017)
+                    self.reroll(delay=0.09, retry_delay=0.05, retry=1)
+                    self.print("Rolled")
 
 
                 t1 = time.time()
-                self.print(f'Rolled 100 times in {t1-t0:.4f}', 'sec')
+                self.print(f'Rolled {num} times in {t1-t0:.4f}', 'sec')
 
             event.cli.eventloop.run_in_executor(do)
-            # self.print("alrighty then")
+            self.print("alrighty then")
 
-        @registry.add_binding('r')
+        @bind('r', name='Reroll')
         def _(event):
-            l = self.hook.reroll()
+            l = self.reroll()
             self.set_stats(**self.hook.zip(l))
 
-        @registry.add_binding('e')
+        @bind('e', name='Update stats')
         def _(event):
             self.set_stats(**self.hook.zip(self.hook.read_all()))
 
-        @registry.add_binding('l')
+        @bind('l')
         def _(event):
             self.print(f"testing executor in {__import__('threading').currentThread()}")
 
@@ -332,28 +366,38 @@ class Ui:
             event.cli.eventloop.run_in_executor(do)
             self.print("ok sure done")
 
-        @registry.add_binding('o')
+        @bind('o')
         def _(event):
-            self.append_info_text('ok more text here')
+            self.set_info_text(self._help_text)
 
-        @registry.add_binding(Keys.PageUp)
+        @bind('E', name='Embed IPython')
+        def _(event):
+            def do():
+                self, event # behold the magic of closures and scope
+
+                __import__('IPython').embed()
+                os.system('cls')
+
+            event.cli.run_in_terminal(do)
+
+        @bind(Keys.PageUp)
         def _(event):
             self._scroll_up()
 
-        @registry.add_binding(Keys.PageDown)
+        @bind(Keys.PageDown)
         def _(event):
             self._scroll_down()
 
-        @registry.add_binding('-')
+        @bind('-')
         def _(event):
             self.print("got random stats")
             self.set_stats(**memhook.get_random_stats())
 
         @Condition
-        def _f(cli):
+        def _in_stat_buffer(cli):
             return any(b == cli.current_buffer for n,b in self.buffers.items() if n.endswith("_STAT_BUFFER"))
 
-        @registry.add_binding(Keys.Enter, filter=_f)
+        @bind(Keys.Enter, filter=_in_stat_buffer)
         def _(event):
             buf = event.cli.current_buffer
             self.set_info_text(f"Enter on buffer {buf} at {buf.cursor_position}")
