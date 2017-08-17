@@ -163,6 +163,7 @@ class Hook:
 
         return me32.modBaseAddr
 
+    # TODO: better detection
     def _get_hwnd(self):
         toplist, winlist = [], []
 
@@ -170,7 +171,7 @@ class Hook:
             winlist.append((hwnd, win32gui.GetWindowText(hwnd)))
 
         win32gui.EnumWindows(enum_cb, toplist)
-        urw = [(hwnd, title) for hwnd, title in winlist if 'UnReal World' in title]
+        urw = [(hwnd, title) for hwnd, title in winlist if 'UnReal World' == title]
 
         return urw[0][0] if urw else None
 
@@ -203,6 +204,7 @@ class Hook:
     def _read_mem_address(self, address, size, handle):
         buf = (c_byte * size)()
         bytesRead = c_ulong(0)
+        result = None
 
         try:
             result = ctypes.windll.kernel32.ReadProcessMemory(
