@@ -164,7 +164,7 @@ class Ui:
         if _is_main_thread():
             self._print(*args, **kwargs)
         else:
-            self.run_in_executor(lambda: self._print(*args, **kwargs))
+            self.run_in_executor(self._print, *args, **kwargs)
             self.redraw()
 
 
@@ -470,7 +470,7 @@ class Ui:
             self.cli.invalidate()
 
     def run_in_executor(self, func, *args, **kwargs):
-        self.ui.cli.eventloop.call_from_executor(lambda: func(*args, **kwargs))
+        self.cli.eventloop.call_from_executor(lambda: func(*args, **kwargs))
 
     def reroll(self, **kw):
         new_stats = self.hook.safe_reroll(**kw)
