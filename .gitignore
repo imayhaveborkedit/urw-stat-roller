@@ -1,5 +1,7 @@
-layout.txt
-run.bat
+.idea/
+*.txt
+*.bat
+_*.py
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
