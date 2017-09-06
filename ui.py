@@ -18,6 +18,7 @@ from prompt_toolkit.layout.containers import VSplit, HSplit, Window
 from prompt_toolkit.layout.controls import BufferControl, FillControl
 from prompt_toolkit.layout.dimension import LayoutDimension as D
 from prompt_toolkit.layout.margins import ScrollbarMargin, ConditionalMargin
+from prompt_toolkit.layout.utils import token_list_to_text
 from prompt_toolkit.shortcuts import create_eventloop
 from prompt_toolkit.token import Token
 
@@ -105,15 +106,17 @@ class HelpItem:
     def _gen_keycode(self):
         return ', '.join(self.keys)
 
-    def render(self):
-        return [
-            (Token.Space, ' '),
-            (Token.HelpKeyCode, self._gen_keycode()),
-            (Token.Space, ' '),
-            (Token.HelpName, self.name),
-            (Token.Space, ' '),
+    # TODO: Textwrap
+    def _format_info(self):
+        return self.info
 
-        ]
+    def render_tokens(self):
+        return [(Token.Space, ' '),
+                (Token.HelpKeyCode, self._gen_keycode()),
+                (Token.Space, ' '),
+                (Token.HelpName, self.name),
+                (Token.SpaceSep, ' - '),
+                (Token.HelpInfo, self._format_info())]
 
 
 class Ui:
@@ -126,7 +129,7 @@ class Ui:
         self._scroll_state = 1
         self._help_showing = False
         self._last_roll = None
-        self._help_text = []
+        self._help_items = []
 
         self.stat_state = {name: 0 for name in statinfo.names}
         self.stat_state['Rerolls'] = 0
@@ -186,6 +189,7 @@ class Ui:
 
         if text:
             self.set_info_text(text)
+            self._help_showing = False
 
 
     def _focus(self, buffer, cli=None):
@@ -301,7 +305,8 @@ class Ui:
 
         def bind_with_help(*args, name, info='', **kwargs):
             def dec(func):
-                self._help_text.append(HelpItem(name, *args, info=info))
+                _info = func.__doc__ or info
+                self._help_items.append(HelpItem(name, *args, info=_info))
 
                 return bind(*args, **kwargs)(func)
             return dec
