@@ -1,6 +1,7 @@
 import os
 import re
 import time
+import bisect
 import textwrap
 import threading
 import traceback
@@ -73,6 +74,11 @@ class BufferState:
     def current(self):
         return self.order[self.position]
 
+    @property
+    def current_stat(self):
+        b = statinfo.Stats.get_name(self.current)
+        return b.name if b else None
+
     def up(self):
         self.position = min(len(self.order) - 1, self.position + 1)
         return self.order[self.position]
@@ -133,6 +139,8 @@ class Ui:
 
         self.stat_state = {name: 0 for name in statinfo.names}
         self.stat_state['Rerolls'] = 0
+
+        self.stat_constraints = interactions.StatConstraintState()
 
 
     @property
@@ -311,8 +319,53 @@ class Ui:
                 return bind(*args, **kwargs)(func)
             return dec
 
-        bind(Keys.Left)(get_by_name('backward-char'))
-        bind(Keys.Right)(get_by_name('forward-char'))
+
+        def ensure_cursor_bounds(buffer, pos, valids=None):
+            buffer_stat = self.stat_buffer_state.current_stat
+
+            if not buffer_stat:
+                return
+
+            if valids is None:
+                valids = self.stat_constraints.get_cursor_bounds(buffer_stat)
+
+            if pos not in valids:
+                valids = sorted(valids)
+                pos_index = bisect.bisect(valids, pos)
+                pos = valids[min(pos_index, len(valids)-1)]
+
+            buffer.cursor_position = pos
+
+
+        @bind(Keys.Left)
+        @self.stat_constraints.listen
+        def _(event):
+            buff = event.current_buffer
+            new_pos = buff.cursor_position + buff.document.get_cursor_left_position(count=event.arg)
+            ensure_cursor_bounds(buff, new_pos)
+
+        @bind(Keys.Right)
+        @self.stat_constraints.listen
+        def _(event):
+            buff = event.current_buffer
+            new_pos = buff.cursor_position + buff.document.get_cursor_right_position(count=event.arg)
+            ensure_cursor_bounds(buff, new_pos)
+
+
+        @bind(Keys.Up)
+        @self.stat_constraints.listen
+        def _(event):
+            self._focus(self.stat_buffer_state.up())
+            buff = event.cli.current_buffer
+            ensure_cursor_bounds(buff, buff.cursor_position)
+
+        @bind(Keys.Down)
+        @self.stat_constraints.listen
+        def _(event):
+            self._focus(self.stat_buffer_state.down())
+            buff = event.cli.current_buffer
+            ensure_cursor_bounds(buff, buff.cursor_position)
+
 
         @bind(Keys.ControlC)
         def _(event):
@@ -327,14 +380,6 @@ class Ui:
 
             self.set_info_text(help_text)
             self._help_showing = True
-
-        @bind(Keys.Up)
-        def _(event):
-            self._focus(self.stat_buffer_state.up())
-
-        @bind(Keys.Down)
-        def _(event):
-            self._focus(self.stat_buffer_state.down())
 
         @bind_with_help('t', name='Reroll test')
         def _(event):
@@ -405,6 +450,7 @@ class Ui:
             return any(b == cli.current_buffer for n,b in self.buffers.items() if n.endswith("_STAT_BUFFER"))
 
         @bind(Keys.Enter, filter=_in_stat_buffer)
+        @self.stat_constraints.listen
         def _(event):
             buf = event.cli.current_buffer
             self.set_info_text(f"Enter on buffer {buf} at {buf.cursor_position}")
@@ -473,6 +519,7 @@ class Ui:
         self.cli.eventloop.call_from_executor(lambda: func(*args, **kwargs))
 
     def reroll(self, **kw):
+        # noinspection PyArgumentList
         new_stats = self.hook.safe_reroll(**kw)
 
         self.set_stats(**self.hook.zip(new_stats))

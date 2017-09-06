@@ -1,3 +1,83 @@
+from functools import wraps
+from collections import defaultdict
+
+from prompt_toolkit.keys import Keys
+
+import statinfo
+
+class StatConstraintState:
+    # Selection states
+    NONE_SELECTED          = 0x0 # Nothing selected
+    SINGLE_SELECTED        = 0x1 # Single number selected (enter pressed once and not moved)
+    RANGE_SELECTED         = 0x2 # Range selected (enter, move, enter)
+    RANGE_SELECTED_PENDING = 0x3 # Range partially selected (enter, move)
+
+    _default_state = {'state': NONE_SELECTED, 'low': 0, 'high': 0, 'start': 0}
+
+    def __init__(self):
+        self._state = defaultdict(self._default_state.copy)
+
+    def for_buffer(self, buffer):
+        if buffer not in statinfo.names:
+            raise NameError("No such stat")
+
+        return {k:v for k,v in self._state[buffer].items() if k != 'state'}
+
+    def get_cursor_bounds(self, buffer):
+        stats1, stats2, numeric, phys = statinfo.groups
+        stats = stats1 + stats2
+
+        if buffer in stats:
+            return range(18, 35+1)
+
+        # These next two may need some sort of alternate entry method
+        # like some slider bar at the bottom
+
+        elif buffer in numeric:
+            return range(15, 15+1) # TODO: allow alt entry (f'in")
+
+        elif buffer in phys:
+            return range(20, 20+1) # TODO: allow direct selection (nonlinear range)
+
+
+    def listen(self, func):
+        @wraps(func)
+        def wrapped(event):
+            # TODO: Figure out if I want to process before or after I run the function (maybe add dec arg)
+            self._process_event(event)
+            return func(event)
+        return wrapped
+
+    def _process_event(self, event):
+        buffer_name = event.current_buffer.text.split(':')[0]
+        key = event.key_sequence[0].key
+        cursor_pos = event.current_buffer.cursor_position - 17
+
+        full_state = self._state[buffer_name]
+        state = full_state['state']
+
+        low, high = sorted((cursor_pos, full_state['start']))
+
+        if key in (Keys.Up.name, Keys.Down.name):
+            # Reset selection to single, other option was to set to range
+            if state == self.RANGE_SELECTED_PENDING:
+                full_state.update(state=self.SINGLE_SELECTED, low=cursor_pos, high=cursor_pos, start=cursor_pos)
+
+        elif key in (Keys.Left, Keys.Right):
+            if state == self.RANGE_SELECTED_PENDING:
+                full_state.update(low=low, high=high)
+
+        elif key == Keys.Enter.name:
+            if state in (self.NONE_SELECTED, self.RANGE_SELECTED):
+                full_state.update(state=self.SINGLE_SELECTED, low=cursor_pos, high=cursor_pos, start=cursor_pos)
+
+            elif state == self.SINGLE_SELECTED:
+                full_state.update(state=self.RANGE_SELECTED_PENDING, low=low, high=high)
+
+            elif state == self.RANGE_SELECTED_PENDING:
+                full_state.update(state=self.RANGE_SELECTED, low=low, high=high)
+
+
 
 class StatConstraint:
     def __init__(self, stat, *, lower, upper, min, max, value=None):
