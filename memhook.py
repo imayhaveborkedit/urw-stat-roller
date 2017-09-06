@@ -95,6 +95,7 @@ _stat_struct = struct.Struct('LLL xxxx x x B B xx B B x B B xx B B B xx B B')
 _TH32CS_SNAPMODULE = 8
 
 
+# noinspection PyTypeChecker
 class _MODULEENTRY32(ctypes.Structure):
     _fields_ = [('dwSize',        DWORD),
                 ('th32ModuleID',  DWORD),
@@ -140,13 +141,6 @@ class Hook:
         if load:
             self.reload()
 
-    @property
-    def GAME(self):
-        return self.hwnd
-
-    @property
-    def THIS(self):
-        return self._own_hwnd
 
     def _get_base_addr(self):
         hModuleSnap = c_void_p(0)
@@ -354,11 +348,14 @@ class MemReader:
 
                 self.ui.run_in_executor(self.ui.set_stats, **stats)
                 self.ui.redraw()
+
             except:
                 self.ui.on_error(*sys.exc_info())
 
-            time.sleep(self.interval)
-            self._not_paused.wait()
+            finally:
+                time.sleep(self.interval)
+                self._not_paused.wait()
+
 
     def start(self):
         self._thread.start()
