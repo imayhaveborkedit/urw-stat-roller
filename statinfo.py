@@ -1,6 +1,6 @@
 from textwrap import dedent as dd
 
-names = [
+names = (
     'Intelligence',
     'Will',
     'Strength',
@@ -15,11 +15,11 @@ names = [
     'Height',
     'Weight',
     'Physique'
-]
+)
 
-groups = [
-    ['Intelligence', 'Will'],
-    ['Strength',
+groups = (
+    ('Intelligence', 'Will'),
+    ('Strength',
      'Endurance',
      'Dexterity',
      'Agility',
@@ -27,10 +27,10 @@ groups = [
      'Eyesight',
      'Hearing',
      'Smell/Taste',
-     'Touch'],
-     ['Height', 'Weight'],
-     ['Physique']
-]
+     'Touch'),
+     ('Height', 'Weight'),
+     ('Physique',)
+)
 
 # TODO: Figure out how to determine chosen race and give stat info
 # http://cloud-3.steamusercontent.com/ugc/320124788920141475/83A5568F35B91FC2BD926876D7757487797911CF/
