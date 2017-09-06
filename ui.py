@@ -362,20 +362,15 @@ class Ui:
         def _(event):
             self.set_stats(**self.hook.zip(self.hook.read_all()))
 
-        @bind('l')
+        @bind('a')
         def _(event):
-            self.print(f"testing executor in {__import__('threading').currentThread()}")
+            self.print("Showing cursor")
+            memhook.Cursor.show()
 
-            def do():
-                self.print(f'ok whatever {__import__("threading").currentThread()}')
-                # event.cli.eventloop.call_from_executor(lambda: )
-
-            event.cli.eventloop.run_in_executor(do)
-            self.print("ok sure done")
-
-        @bind('o')
+        @bind('s')
         def _(event):
-            self.set_info_text(self._help_text)
+            self.print("Hiding cursor")
+            memhook.Cursor.hide()
 
         @bind_with_help('E', name='Embed IPython')
         def _(event):

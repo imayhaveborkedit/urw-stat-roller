@@ -11,7 +11,7 @@ from contextlib import contextmanager
 import ctypes
 
 from ctypes import c_char, c_byte, c_ulong, c_void_p
-from ctypes.wintypes import DWORD, HMODULE
+from ctypes.wintypes import DWORD, BOOL, HMODULE
 
 import win32api
 import win32gui
@@ -108,6 +108,9 @@ class _MODULEENTRY32(ctypes.Structure):
                 ('szModule',      c_char * 256),
                 ('szExePath',     c_char * 260)]
 
+class _CONSOLECURSORINFO(ctypes.Structure):
+    _fields_ = [('dwSize', DWORD),
+                ('bVisible', BOOL)]
 
 @contextmanager
 def _open_proc(pid):
@@ -123,6 +126,51 @@ def _open_proc(pid):
 
 def get_random_stats():
     return {name: random.randrange(1,5) for name in statinfo.names}
+
+
+class Cursor:
+    visible = True
+    _lock = threading.Lock()
+
+    @classmethod
+    def _set_cursor(cls, *, visible=None, size=None):
+        with cls._lock:
+            cinfo = _CONSOLECURSORINFO()
+            h = ctypes.windll.kernel32.GetStdHandle(-11)
+            ret = None
+
+            # TODO: Add return checks (checking for 0 or 1)
+            ok = ctypes.windll.kernel32.GetConsoleCursorInfo(h, ctypes.byref(cinfo))
+
+            if visible is not None:
+                cinfo.bVisible = int(visible)
+                cls.visible = visible
+                ret = visible
+
+            if size is not None:
+                cinfo.dwSize = size
+                ret = size
+
+            ok = ctypes.windll.kernel32.SetConsoleCursorInfo(h, ctypes.byref(cinfo))
+
+        return ret
+
+    @classmethod
+    def show(cls):
+        return cls._set_cursor(visible=True)
+
+    @classmethod
+    def hide(cls):
+        return cls._set_cursor(visible=False)
+
+    @classmethod
+    def toggle(cls):
+        return cls._set_cursor(visible=not cls.visible)
+
+    @classmethod
+    def set_size(cls, x):
+        cls._set_cursor(size=max(0, min(100, x)))
+
 
 
 class Hook:
