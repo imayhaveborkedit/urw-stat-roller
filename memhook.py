@@ -420,6 +420,10 @@ class MemReader:
     def start(self):
         self._thread.start()
 
+    def stop(self):
+        self.resume()
+        self._should_run = False
+
     def pause(self):
         self._not_paused.clear()
 

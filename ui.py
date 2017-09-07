@@ -224,6 +224,8 @@ class Ui:
         scroll.scroll_half_page_down(*self.info_wb)
         self._scroll_state = -1
 
+    def _get_window_title(self):
+        return f"UnReal World Stat Roller V2"
 
     # Setup functions
 
@@ -496,6 +498,7 @@ class Ui:
             layout=self.layout,
             buffers=self.buffers,
             key_bindings_registry=self.registry,
+            get_title=self._get_window_title,
             mouse_support=True,
             use_alternate_screen=True)
 
@@ -518,6 +521,7 @@ class Ui:
         try:
             self.cli.run()
         finally:
+            self._memreader.stop()
             self.cli.eventloop.close()
 
     def redraw(self):
@@ -540,8 +544,12 @@ class Ui:
 
     def set_stat(self, stat, value):
         self.stat_state[stat] = value
-        self.buffers[statinfo.Stats.get(stat).buffername].reset(
-            make_stat_doc(stat, value))
+
+        buffer = self.buffers[statinfo.Stats.get(stat).buffername]
+        cursor = buffer.cursor_position
+
+        buffer.reset(make_stat_doc(stat, value))
+        buffer.cursor_position = cursor
 
     def set_stats(self, **stats):
         for stat, value in stats.items():
