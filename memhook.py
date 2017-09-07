@@ -131,12 +131,24 @@ def get_random_stats():
 class Cursor:
     visible = True
     _lock = threading.Lock()
+    _cli = None
+
+    @classmethod
+    def link(cls, cli):
+        cls._cli = cli
+
+    @classmethod
+    def _get_std_handle(cls):
+        if cls._cli and cls._cli.output._in_alternate_screen:
+            return cls._cli.output.hconsole
+        else:
+            return ctypes.windll.kernel32.GetStdHandle(-11)
 
     @classmethod
     def _set_cursor(cls, *, visible=None, size=None):
         with cls._lock:
             cinfo = _CONSOLECURSORINFO()
-            h = ctypes.windll.kernel32.GetStdHandle(-11)
+            h = cls._get_std_handle()
             ret = None
 
             # TODO: Add return checks (checking for 0 or 1)

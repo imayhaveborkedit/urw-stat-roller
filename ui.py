@@ -473,6 +473,8 @@ class Ui:
         self._memreader = memhook.MemReader(self)
         self._memreader.start()
 
+        memhook.Cursor.link(self.cli)
+
 
     def build(self):
         self.buffers = self._gen_buffers()
