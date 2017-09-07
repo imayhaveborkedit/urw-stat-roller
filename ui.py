@@ -336,9 +336,12 @@ class Ui:
 
                 # if we wind up at the same spot, check to see if there's a non-sequential spot
                 if buffer.cursor_position == pos:
-                    if requested_pos < pos and pos > valids[0]:
+                    moving_left = requested_pos < pos
+
+                    if moving_left and pos > valids[0]:
                         pos = valids[max(0, pos_index-1)]
-                    elif pos < valids[-1]:
+
+                    if not moving_left and pos < valids[-1]:
                         pos = valids[min(pos_index+1, len(valids)-1)]
 
             buffer.cursor_position = pos
