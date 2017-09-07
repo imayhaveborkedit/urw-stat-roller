@@ -319,7 +319,6 @@ class Ui:
                 return bind(*args, **kwargs)(func)
             return dec
 
-
         def ensure_cursor_bounds(buffer, pos, valids=None):
             buffer_stat = self.stat_buffer_state.current_stat
 
@@ -331,11 +330,18 @@ class Ui:
 
             if pos not in valids:
                 valids = sorted(valids)
-                pos_index = bisect.bisect(valids, pos)
+                pos_index = bisect.bisect_left(valids, pos)
+                requested_pos = pos
                 pos = valids[min(pos_index, len(valids)-1)]
 
-            buffer.cursor_position = pos
+                # if we wind up at the same spot, check to see if there's a non-sequential spot
+                if buffer.cursor_position == pos:
+                    if requested_pos < pos and pos > valids[0]:
+                        pos = valids[max(0, pos_index-1)]
+                    elif pos < valids[-1]:
+                        pos = valids[min(pos_index+1, len(valids)-1)]
 
+            buffer.cursor_position = pos
 
         @bind(Keys.Left)
         @self.stat_constraints.listen
@@ -350,7 +356,7 @@ class Ui:
             buff = event.current_buffer
             new_pos = buff.cursor_position + buff.document.get_cursor_right_position(count=event.arg)
             ensure_cursor_bounds(buff, new_pos)
-
+        # TODO: set all stat buffers with no value set to have the same cursor_position
 
         @bind(Keys.Up)
         @self.stat_constraints.listen

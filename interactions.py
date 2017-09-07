@@ -37,15 +37,15 @@ class StatConstraintState:
             return range(15, 15+1) # TODO: allow alt entry (f'in")
 
         elif buffer in phys:
-            return range(20, 20+1) # TODO: allow direct selection (nonlinear range)
-
+            return range(24, 32+1, 2)
 
     def listen(self, func):
         @wraps(func)
         def wrapped(event):
-            # TODO: Figure out if I want to process before or after I run the function (maybe add dec arg)
             self._process_event(event)
-            return func(event)
+            x = func(event)
+            # update whatever
+            return x
         return wrapped
 
     def _process_event(self, event):
