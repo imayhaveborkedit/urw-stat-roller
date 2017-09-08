@@ -37,7 +37,7 @@ class StatConstraintState:
             return range(15, 15+1) # TODO: allow alt entry (f'in")
 
         elif buffer in phys:
-            return range(24, 32+1, 2)
+            return range(23, 31+1, 2)
 
     def listen(self, func):
         @wraps(func)
@@ -50,7 +50,7 @@ class StatConstraintState:
 
     def _process_event(self, event):
         buffer_name = event.current_buffer.text.split(':')[0]
-        key = event.key_sequence[0].key
+        key = event.key_sequence[0].key.name # non-character keys are key objects in events
         cursor_pos = event.current_buffer.cursor_position - 17
 
         full_state = self._state[buffer_name]

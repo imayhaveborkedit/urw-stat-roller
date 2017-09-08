@@ -299,8 +299,8 @@ class Stats:
     _fmt =  '{stat:<13} {val:>2} [{size:<18}]'
     _hfmt = '{stat:<13} {val:>2}" ({fval}\'{ival}")'
     _wfmt = '{stat:<13} {val:>2} lbs ({kval} kg)'
-    _pfmt = '{stat:<14} Type {val} [ {size} ]'
-    _rfmt = '{stat:<14} {val}'
+    _pfmt = '{stat:<13} Type {val} [ {size} ]'
+    _rfmt = '{stat:<13} {val}'
 
 
     @classmethod
