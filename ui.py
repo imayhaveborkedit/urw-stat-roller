@@ -65,7 +65,7 @@ def _is_main_thread():
 
 class BufferState:
     order = list(reversed(
-        [stat.buffername for stat in statinfo.Stats.all()] + [DEFAULT_BUFFER]))
+        [stat.buffername for stat in statinfo.Stats.all_real_stats()] + [DEFAULT_BUFFER]))
 
     def __init__(self, position=0):
         self.position = position
@@ -76,7 +76,7 @@ class BufferState:
 
     @property
     def current_stat(self):
-        b = statinfo.Stats.get_name(self.current)
+        b = statinfo.Stats.get_name(self.current, group=statinfo.Stats.all_real_stats)
         return b.name if b else None
 
     def up(self):
@@ -241,17 +241,13 @@ class Ui:
                 initial_document=Document(),
                 is_multiline=True),
 
-            'REROLLS_STAT_BUFFER': Buffer(
-                initial_document=make_stat_doc('Rerolls', 0),
-                is_multiline=False),
-
             'MSG_BUFFER': Buffer(
                 initial_document=Document(),
                 is_multiline=True),
 
             **{
-               stat.buffername: Buffer(initial_document=make_stat_doc(stat.name))
-               for stat in statinfo.Stats.all()
+                stat.buffername: Buffer(initial_document=make_stat_doc(stat.name))
+                for stat in statinfo.Stats.all_stats()
             }
         }
 

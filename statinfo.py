@@ -304,27 +304,58 @@ class Stats:
 
 
     @classmethod
-    def get(cls, name):
+    def get(cls, name, *, group=None):
+        if group is None:
+            group = cls.all_stats
+
         try:
-            return next(filter(lambda s: s.name == name, (*cls.all(), cls.rerolls)))
+            return next(filter(lambda s: s.name == name, group()))
         except StopIteration:
             pass
 
     @classmethod
-    def get_name(cls, buffname):
+    def get_name(cls, buffname, *, group=None):
+        if group is None:
+            group = cls.all_stats
+
         try:
-            return next(filter(lambda s: s.buffername == buffname, (*cls.all(), cls.rerolls)))
+            return next(filter(lambda s: s.buffername == buffname, group()))
         except StopIteration:
             pass
+            
 
-    # Split into all_stats and all_real_stats (without rerolls)
     @classmethod
-    def all(cls):
+    def all_stats(cls):
+        """
+        Return a tuple of all stats with memory locations.
+        """
+        return (
+            cls.intelligence, cls.will, cls.strength, cls.endurance,
+            cls.dexterity, cls.agility, cls.speed, cls.eyesight,
+            cls.hearing, cls.smelltaste, cls.touch, cls.height,
+            cls.weight, cls.physique, cls.rerolls)
+
+    @classmethod
+    def all_real_stats(cls):
+        """
+        Return a tuple of all stats, not including rerolls.
+        """
         return (
             cls.intelligence, cls.will, cls.strength, cls.endurance,
             cls.dexterity, cls.agility, cls.speed, cls.eyesight,
             cls.hearing, cls.smelltaste, cls.touch, cls.height,
             cls.weight, cls.physique)
+
+    @classmethod
+    def all_normal_stats(cls):
+        """
+        Return a tuple of all stats that can have values of 1 to 18.
+        """
+        return (
+            cls.intelligence, cls.will, cls.strength, cls.endurance,
+            cls.dexterity, cls.agility, cls.speed, cls.eyesight,
+            cls.hearing, cls.smelltaste, cls.touch)
+
 
     @classmethod
     def format(cls, stat, value):
