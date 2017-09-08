@@ -306,17 +306,18 @@ class Stats:
     @classmethod
     def get(cls, name):
         try:
-            return next(filter(lambda s: s.name == name, cls.all()))
+            return next(filter(lambda s: s.name == name, (*cls.all(), cls.rerolls)))
         except StopIteration:
             pass
 
     @classmethod
     def get_name(cls, buffname):
         try:
-            return next(filter(lambda s: s.buffername == buffname, cls.all()))
+            return next(filter(lambda s: s.buffername == buffname, (*cls.all(), cls.rerolls)))
         except StopIteration:
             pass
 
+    # Split into all_stats and all_real_stats (without rerolls)
     @classmethod
     def all(cls):
         return (
