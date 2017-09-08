@@ -147,7 +147,7 @@ class Ui:
     def info_wb(self):
         return self.info_window, self.buffers['INFO_BUFFER']
 
-
+    # TODO: optimize
     def _increment_repeated_msg(self, first=False):
         if first:
             return lambda line: line.rstrip(' ') + ' (2x)'
@@ -180,6 +180,7 @@ class Ui:
 
 
     # TODO
+    # Select the default buffer, set some text and request an input?
     def prompt(self, message, end='>'):
         ...
 
@@ -522,11 +523,7 @@ class Ui:
             report_dimensions_callback (cli, list)
 
         """
-
-        def vertical_cursor_move(cli):
-            pass
-
-
+        pass
 
 
     def _finalize_build(self):
@@ -587,8 +584,7 @@ class Ui:
     def run_in_executor(self, func, *args, **kwargs):
         self.cli.eventloop.call_from_executor(lambda: func(*args, **kwargs))
 
-    def reroll(self, **kw):
-        # noinspection PyArgumentList
+    def reroll(self):
         new_stats = self.hook.reroll()
 
         self.set_stats(**self.hook.zip(new_stats))
@@ -602,6 +598,7 @@ class Ui:
         buffer = self.buffers[statinfo.Stats.get(stat).buffername]
         cursor = buffer.cursor_position
 
+        # If cursor position is being funky I can just set the position on the doc
         buffer.reset(make_stat_doc(stat, value))
         buffer.cursor_position = cursor
 
