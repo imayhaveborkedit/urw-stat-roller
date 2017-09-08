@@ -255,14 +255,14 @@ class Hook:
     def _press_n_no_focus(self, delay=None):
         win32api.SendMessage(self.hwnd, WM_CHAR, 78)
 
-    def _read_mem_address(self, address, size, handle):
+    def _read_mem_address(self, raw_address, size, handle):
         buf = (c_byte * size)()
         bytesRead = c_ulong(0)
         result = None
 
         try:
             result = ctypes.windll.kernel32.ReadProcessMemory(
-                handle, address, buf, size, ctypes.byref(bytesRead))
+                handle, raw_address, buf, size, ctypes.byref(bytesRead))
 
             assert result != 0
             return buf
@@ -272,7 +272,7 @@ class Hook:
             err_msg = win32api.FormatMessage(result).strip()
 
             raise RuntimeError(
-                f"Could not read address {address} ({size}B), error code {result} ({err_msg})")
+                f"Could not read address {raw_address} ({size}B), error code {result} ({err_msg})")
 
     def _read_address(self, address, handle):
         size = address.size
@@ -289,6 +289,20 @@ class Hook:
         except Exception as e:
             err = ctypes.windll.kernel32.GetLastError()
             raise RuntimeError(f"Could not read address (err {err})")
+
+    def _write_address(self, address, data, handle):
+        try:
+            result = ctypes.windll.kernel32.WriteProcessMemory(
+                handle, address.address + self.base_addr, data, len(data), None)
+        except Exception as e:
+            err = ctypes.windll.kernel32.GetLastError()
+            raise RuntimeError(f"Could not write address (err {err})")
+
+    def write_to_address(self, address, value):
+        data = struct.pack(_size_to_struct[address.size], value)
+
+        with _open_proc(self.pid) as handle:
+            self._write_address(address, data, handle)
 
     def read_address(self, address):
         with _open_proc(self.pid) as handle:
@@ -316,33 +330,23 @@ class Hook:
 
         return True
 
-    def safe_reroll(self, *, delay=None, retry_delay=0.001, retry=500):
+    def reroll(self):
         self._last_stats = self.read_all()
         last_reroll = self._read_rerolls()
 
-        self._press_n_no_focus(delay)
+        self._press_n_no_focus()
+        self._press_n_no_focus()
 
-        for x in range(retry):
-            stats = self.read_all()
+        stats = self.read_all()
+        assert stats != self._last_stats
 
-            if stats != self._last_stats:
-                return stats
-
-            time.sleep(retry_delay)
-
-        return self._last_stats # rip
-
+        return stats
 
     def read_stat(self, stat):
         if not self.is_running():
             raise RuntimeError("Process is not running")
 
         return self.read_address(_statmap[stat])
-
-    # def _read_all(self):
-    #     with _open_proc(self.pid) as handle:
-    #         for stat in statinfo.names:
-    #             yield self._read_address(_statmap[stat], handle)
 
     def _read_all_stats(self):
         with _open_proc(self.pid) as handle:
@@ -367,12 +371,8 @@ class Hook:
     def _read_rerolls(self):
         return self.read_address(_rerolls)
 
-    def reroll(self, *, delay=None):
-        if not self.is_foreground():
-            self.focus_game()
-
-        self._press_n(delay)
-        return self.read_all()
+    def reset_reroll_count(self, count=0):
+        self.write_to_address(_rerolls, count)
 
     def zip(self, statlist):
         return dict(zip(statinfo.names, statlist))

@@ -40,7 +40,7 @@ help_text = textwrap.dedent(
 stat_args = {
     'dont_extend_width': True,
     'dont_extend_height': True,
-    'always_hide_cursor': True,
+    'always_hide_cursor': False,
     'wrap_lines': True,
     'height': D.exact(1),
     'width': D.exact(38),
@@ -52,7 +52,7 @@ def hpad(height, ch=' ', token=Token.Padding):
 def vpad(width, ch=' ', token=Token.Padding):
     return Window(width=D.exact(width), content=FillControl(ch, token=token))
 
-def make_stat_doc(name, value=4):
+def make_stat_doc(name, value=0):
     return Document(statinfo.Stats.format(name, value))
 
 def make_stat_window(name):
@@ -241,7 +241,7 @@ class Ui:
                 initial_document=Document(),
                 is_multiline=True),
 
-            'REROLL_STAT_BUFFER': Buffer(
+            'REROLLS_STAT_BUFFER': Buffer(
                 initial_document=make_stat_doc('Rerolls', 0),
                 is_multiline=False),
 
@@ -271,7 +271,7 @@ class Ui:
             stat_windows.append(vpad(1))
 
         stat_windows.append(Window(
-            content=BufferControl(buffer_name='REROLL_STAT_BUFFER'), **stat_args))
+            content=BufferControl(buffer_name='REROLLS_STAT_BUFFER'), **stat_args))
         stat_windows.append(vpad(1))
 
         @Condition
@@ -348,6 +348,17 @@ class Ui:
 
             buffer.cursor_position = pos
 
+        @Condition
+        def _in_stat_buffer(cli):
+            return cli.current_buffer_name.endswith("_STAT_BUFFER")
+
+        @Condition
+        def _in_normal_stat_buffer(cli):
+            return not cli.current_buffer_name.startswith(tuple(name.upper() for group in statinfo.groups[2:] for name in group))
+
+
+        # Navigation binds
+
         @bind(Keys.Left)
         @self.stat_constraints.listen
         def _(event):
@@ -361,87 +372,47 @@ class Ui:
             buff = event.current_buffer
             new_pos = buff.cursor_position + buff.document.get_cursor_right_position(count=event.arg)
             ensure_cursor_bounds(buff, new_pos)
-        # TODO: set all stat buffers with no value set to have the same cursor_position
 
         @bind(Keys.Up)
         @self.stat_constraints.listen
         def _(event):
+            current_buffer = event.cli.current_buffer
+            from_stat_buff = _in_normal_stat_buffer(event.cli)
+
             self._focus(self.stat_buffer_state.up())
+
             buff = event.cli.current_buffer
             ensure_cursor_bounds(buff, buff.cursor_position)
+
+            if _in_normal_stat_buffer(event.cli) and from_stat_buff:
+                buff.cursor_position = current_buffer.cursor_position
 
         @bind(Keys.Down)
         @self.stat_constraints.listen
         def _(event):
+            current_buffer = event.cli.current_buffer
+            from_stat_buff = _in_normal_stat_buffer(event.cli)
+
             self._focus(self.stat_buffer_state.down())
+
             buff = event.cli.current_buffer
             ensure_cursor_bounds(buff, buff.cursor_position)
 
+            if _in_normal_stat_buffer(event.cli) and from_stat_buff:
+                buff.cursor_position = current_buffer.cursor_position
 
-        @bind(Keys.ControlC)
+        @bind(Keys.Enter, filter=_in_stat_buffer)
+        @self.stat_constraints.listen
+        def _(event):
+            pass
+
+
+        # Control binds
+
+        @bind(Keys.ControlD)
+        # @bind(Keys.ControlC)
         def _(event):
             event.cli.set_return_value(None)
-
-        @bind_with_help('?', name='Help', info="Shows a help screen")
-        def _(event):
-            if self._help_showing:
-                self._help_showing = False
-                self._update_info_text()
-                return
-
-            self.set_info_text(help_text)
-            self._help_showing = True
-
-        @bind_with_help('t', name='Reroll test')
-        def _(event):
-            self.print("Dispatching runner")
-
-            def do():
-                self.print("ok running")
-
-                num = 50
-                t0 = time.time()
-
-                for x in range(num):
-                    # self.reroll(delay=0.017, warning="WARNING SAME STATS ROLLED")
-                    self.reroll(delay=0.09, retry_delay=0.05, retry=1)
-                    self.print("Rolled")
-
-
-                t1 = time.time()
-                self.print(f'Rolled {num} times in {t1-t0:.4f}', 'sec')
-
-            event.cli.eventloop.run_in_executor(do)
-            self.print("alrighty then")
-
-        @bind_with_help('r', name='Reroll')
-        def _(event):
-            l = self.reroll()
-            self.set_stats(**self.hook.zip(l))
-
-        @bind_with_help('e', name='Update stats')
-        def _(event):
-            self.set_stats(**self.hook.zip(self.hook.read_all()))
-
-        @bind('a')
-        def _(event):
-            self.print("Showing cursor")
-            memhook.Cursor.show()
-
-        @bind('s')
-        def _(event):
-            self.print("Hiding cursor")
-            memhook.Cursor.hide()
-
-        @bind_with_help('E', name='Embed IPython')
-        def _(event):
-            def do():
-                self, event # behold the magic of closures and scope
-
-                __import__('IPython').embed()
-                os.system('cls')
-
-            event.cli.run_in_terminal(do)
 
         @bind(Keys.PageUp)
         def _(event):
@@ -451,29 +422,116 @@ class Ui:
         def _(event):
             self._scroll_down()
 
+        @bind_with_help('?', name='Help', info="Shows the help screen")
+        def _(event):
+            if self._help_showing:
+                self._help_showing = False
+                self._update_info_text()
+                return
+
+            self.set_info_text(help_text)
+            self._help_showing = True
+
+        @bind_with_help('n', name='Reroll')
+        def _(event):
+            l = self.reroll()
+
+        @bind_with_help('y', name='Accept Stats', info="Accept current stats in game")
+        def _(event):
+            ... # TODO
+
+        @bind_with_help('r', name='Refresh stats')
+        def _(event):
+            self.set_stats(**self.hook.zip(self.hook.read_all()))
+
+        @bind_with_help(Keys.ControlZ, name='Undo', info="TODO: undo buffer")
+        def _(event):
+            self.print("I'll get to writing undo eventually")
+
+        @bind_with_help(Keys.ControlY, name='Redo', info="TODO: undo buffer")
+        def _(event):
+            ... # TODO
+
+
+        # Testing/Debug binds
+
+        @bind_with_help('`', name='Embed IPython')
+        def _(event):
+            def do():
+                # noinspection PyStatementEffect
+                self, event # behold the magic of closures and scope
+
+                __import__('IPython').embed()
+                os.system('cls')
+
+            event.cli.run_in_terminal(do)
+
+        @bind_with_help('t', name='Reroll test')
+        def _(event):
+            def do():
+                self.print("Running reroll test")
+
+                num = 50
+                self.hook.reset_reroll_count()
+                rrbase = self.hook._read_rerolls()
+                t0 = time.time()
+
+                for x in range(num):
+                    self.reroll()
+                    self.print("Rerolled")
+
+                t1 = time.time()
+
+                rrcount = self.hook._read_rerolls() - rrbase
+                self.print(f'Rolled {num} ({rrcount}) times in {t1-t0:.4f}', 'sec')
+
+            self.run_in_executor(do)
+
+        @bind(',')
+        def _(event):
+            self.print("Showing cursor")
+            memhook.Cursor.show()
+
+        @bind('.')
+        def _(event):
+            self.print("Hiding cursor")
+            memhook.Cursor.hide()
+
         @bind('-')
         def _(event):
             self.print("got random stats")
             self.set_stats(**memhook.get_random_stats())
 
-        @Condition
-        def _in_stat_buffer(cli):
-            return any(b == cli.current_buffer for n,b in self.buffers.items() if n.endswith("_STAT_BUFFER"))
-
-        @bind(Keys.Enter, filter=_in_stat_buffer)
-        @self.stat_constraints.listen
-        def _(event):
-            buf = event.cli.current_buffer
-            self.set_info_text(f"Enter on buffer {buf} at {buf.cursor_position}")
-
         return registry
 
 
     def _add_events(self):
-        def default_buffer_changed(_):
-            self.buffers['INFO_BUFFER'].reset(self.buffers[DEFAULT_BUFFER].document)
+        """
+        Buffer events:
+            on_text_changed
+            on_text_insert
+            on_cursor_position_changed
 
-        self.buffers[DEFAULT_BUFFER].on_text_changed += default_buffer_changed
+        Application events:
+            on_input_timeout
+            on_start
+            on_stop
+            on_reset
+            on_initialize
+            on_buffer_changed
+            on_render
+            on_invalidate
+
+        Container events:
+            report_dimensions_callback (cli, list)
+
+        """
+
+        def vertical_cursor_move(cli):
+            pass
+
+
+
 
     def _finalize_build(self):
         self.set_info_text(help_text)
@@ -535,7 +593,7 @@ class Ui:
 
     def reroll(self, **kw):
         # noinspection PyArgumentList
-        new_stats = self.hook.safe_reroll(**kw)
+        new_stats = self.hook.reroll()
 
         self.set_stats(**self.hook.zip(new_stats))
         self.stat_state['Rerolls'] += 1
