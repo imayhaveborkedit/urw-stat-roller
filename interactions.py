@@ -42,13 +42,20 @@ class StatConstraintState:
     def listen(self, func):
         @wraps(func)
         def wrapped(event):
-            self._process_event(event)
+            current_buffer = event.current_buffer
+            current_buffer_name = event.cli.current_buffer_name
+            self._process_event_before(event)
+
             x = func(event)
-            # update whatever
+
+            event.previous_buffer = current_buffer
+            event.previous_buffer_name = current_buffer_name
+            self._process_event_after(event)
+
             return x
         return wrapped
 
-    def _process_event(self, event):
+    def _process_event_before(self, event):
         buffer_name = event.current_buffer.text.split(':')[0]
         key = event.key_sequence[0].key.name # non-character keys are key objects in events
         cursor_pos = event.current_buffer.cursor_position - 17
@@ -63,20 +70,25 @@ class StatConstraintState:
             if state == self.RANGE_SELECTED_PENDING:
                 full_state.update(state=self.SINGLE_SELECTED, low=cursor_pos, high=cursor_pos, start=cursor_pos)
 
-        elif key in (Keys.Left, Keys.Right):
+        elif key in (Keys.Left.name, Keys.Right.name):
             if state == self.RANGE_SELECTED_PENDING:
                 full_state.update(low=low, high=high)
+
+            elif state == self.SINGLE_SELECTED:
+                full_state.update(state=self.RANGE_SELECTED_PENDING, low=low, high=high)
 
         elif key == Keys.Enter.name:
             if state in (self.NONE_SELECTED, self.RANGE_SELECTED):
                 full_state.update(state=self.SINGLE_SELECTED, low=cursor_pos, high=cursor_pos, start=cursor_pos)
 
-            elif state == self.SINGLE_SELECTED:
-                full_state.update(state=self.RANGE_SELECTED_PENDING, low=low, high=high)
-
             elif state == self.RANGE_SELECTED_PENDING:
-                full_state.update(state=self.RANGE_SELECTED, low=low, high=high)
+                if low == high:
+                    full_state.update(state=self.SINGLE_SELECTED, low=low, high=high)
+                else:
+                    full_state.update(state=self.RANGE_SELECTED, low=low, high=high)
 
+    def _process_event_after(self, event):
+        event.cli.ui.print(f"Acting on buffer {event.cli.current_buffer_name}")
 
 
 class StatConstraint:
