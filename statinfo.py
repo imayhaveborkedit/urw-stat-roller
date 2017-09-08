@@ -347,7 +347,13 @@ class Stats:
 
     @classmethod
     def _format_physique(cls, value):
-        size = ' '.join(list('----@----')[value-1:value+4][::-1])
+        things = list('-----')
+        try:
+            things[value-1] = '@'
+        except IndexError:
+            pass
+
+        size = ' '.join(things)
         return cls._pfmt.format(
             stat=cls.physique.name + ':', val=value, size=size)
 
