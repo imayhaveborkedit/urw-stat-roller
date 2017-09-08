@@ -88,7 +88,17 @@ class StatConstraintState:
                     full_state.update(state=self.RANGE_SELECTED, low=low, high=high)
 
     def _process_event_after(self, event):
-        event.cli.ui.print(f"Acting on buffer {event.cli.current_buffer_name}")
+        last_buffer_name = event.previous_buffer.text.split(':')[0]
+        key = event.key_sequence[0].key.name # non-character keys are key objects in events
+        last_cursor_pos = event.previous_buffer.cursor_position - 17
+
+        full_state = self._state[last_buffer_name]
+        state = full_state['state']
+
+        if key in (Keys.Up.name, Keys.Down.name):
+            if state == self.RANGE_SELECTED_PENDING:
+                full_state.update(state=self.SINGLE_SELECTED)
+
 
 
 class StatConstraint:
